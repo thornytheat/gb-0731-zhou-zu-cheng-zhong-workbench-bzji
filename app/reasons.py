@@ -37,5 +37,8 @@ REASONS = {
     "RUN_UNKNOWN": "批次不存在",
     "SOURCE_CHANGED": "源文件或规则已变更",
     "REPLAY_MISMATCH": "重算结果与归档不一致",
+    "UPGRADE_NOOP": "升级目标与归档规则一致",
+    "UPGRADE_INVALID": "升级目标规则或参数无效",
+    "ORDER_UNKNOWN": "复核单不存在",
     "STORE_BUSY": "批次库暂忙",
 }

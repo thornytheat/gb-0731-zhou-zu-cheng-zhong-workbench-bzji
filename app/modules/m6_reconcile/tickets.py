@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+from app.config import STANDARD_RULES
 from app.errors import DomainError
 from app.evidence import Issue, SourceRow
 from app.modules.m1_intake.reader import read_table
@@ -22,7 +23,7 @@ class Ticket:
     source: SourceRow
 
 
-def ticket_book(source, passes):
+def ticket_book(source, passes, rules=STANDARD_RULES):
     table = read_table(source, HEADER)
     book = defaultdict(list)
     issues = []
@@ -37,7 +38,7 @@ def ticket_book(source, passes):
             version = token(data["版次"])
             if not version.isascii() or not version.isdigit() or len(version) > 6 or int(version) == 0:
                 raise DomainError("BAD_VALUE")
-            kg = rounded(mass(data["总重"], data["单位"]))
+            kg = rounded(mass(data["总重"], data["单位"]), rules.weight_resolution_kg)
             if kg <= 0:
                 raise DomainError("BAD_VALUE")
             book[pass_id].append(Ticket(

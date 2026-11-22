@@ -1,0 +1,16 @@
+<section class="panel upgrade" id="upgrade-panel" hidden aria-labelledby="upgrade-title">
+  <div class="panel__head">
+    <h2 id="upgrade-title">规则升级复核</h2>
+    <span class="panel__meta" id="upgrade-meta"></span>
+  </div>
+  <form class="upgrade-form" id="upgrade-form">
+    <label class="upgrade-field" for="upgrade-version">目标规则版本
+      <input type="text" id="upgrade-version" placeholder="axle-1.1.0" autocomplete="off" required>
+    </label>
+    <label class="upgrade-field upgrade-field--wide" for="upgrade-parameters">参数覆盖（JSON，可空）
+      <textarea id="upgrade-parameters" rows="2" placeholder='{"ticket_tolerance_kg": "49.99"}' spellcheck="false"></textarea>
+    </label>
+    <button class="btn btn--primary" id="upgrade-submit" type="submit">出具复核单</button>
+  </form>
+  <p class="upgrade-hint">对当前已归档批次按目标规则重算，逐车次给出旧结论、复核后结论与依据；未受影响的车次保持原样。同一升级重复出具不会重复出单。</p>
+</section>

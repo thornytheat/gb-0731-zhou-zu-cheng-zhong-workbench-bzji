@@ -2,7 +2,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 
-from app.config import RULE_PARAMETERS, RULE_VERSION
+from app.config import STANDARD_RULES
 from app.evidence import wire
 
 
@@ -18,8 +18,8 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def identify(sample, sources):
+def identify(sample, sources, rules=STANDARD_RULES):
     files = {role: {"file": source.name, "bytes": len(source.content), "sha256": digest(source.content)}
              for role, source in sources.items()}
-    key = {"sample": sample, "files": files, "rules": RULE_VERSION, "parameters": RULE_PARAMETERS}
+    key = {"sample": sample, "files": files, "rules": rules.version, "parameters": rules.parameters()}
     return {"run_id": digest(canonical(key).encode("utf-8")), **key}

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
-from app.config import MAX_WHEEL_KG
+from app.config import STANDARD_RULES
 from app.evidence import Issue
 from app.modules.m1_intake.parse import Trigger
 from app.modules.m2_calibration.certificates import certificates
@@ -17,7 +17,7 @@ class Wheel:
     cert_ref: str
 
 
-def calibrate(events, sources):
+def calibrate(events, sources, rules=STANDARD_RULES):
     catalog = certificates(sources["certificates"])
     passes = crossings(sources["passes"])
     by_side = {side: [item for item in catalog if item.side == side] for side in ("L", "R")}
@@ -36,8 +36,8 @@ def calibrate(events, sources):
             issues.append(Issue(code, event.source, event.pass_id, tuple(item.source.ref for item in eligible)))
             continue
         chosen = eligible[0]
-        kg = rounded(event.raw_kg * chosen.gain + chosen.bias_kg)
-        if not 0 < kg <= MAX_WHEEL_KG:
+        kg = rounded(event.raw_kg * chosen.gain + chosen.bias_kg, rules.weight_resolution_kg)
+        if not 0 < kg <= rules.max_wheel_kg:
             issues.append(Issue("WHEEL_RANGE", event.source, event.pass_id, (chosen.source.ref,)))
             continue
         wheels.append(Wheel(event, kg, chosen.id, chosen.source.ref))

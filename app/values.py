@@ -39,8 +39,8 @@ def mass(value, unit):
     return in_range(decimal_value(value) * multiplier, Decimal("0.000001"), 150000)
 
 
-def rounded(value):
-    return value.quantize(CENT, rounding=ROUND_HALF_UP)
+def rounded(value, resolution=CENT):
+    return value.quantize(resolution, rounding=ROUND_HALF_UP)
 
 
 def instant(value):

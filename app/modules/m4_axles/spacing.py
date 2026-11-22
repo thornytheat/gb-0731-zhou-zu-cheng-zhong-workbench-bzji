@@ -2,11 +2,11 @@ from bisect import bisect_right
 from datetime import timedelta
 from decimal import Decimal
 
-from app.config import MAX_SPACING, MIN_SPACING, TANDEM_SPACING
+from app.config import STANDARD_RULES
 from app.evidence import Issue
 
 
-def classify_spacing(pairs, unresolved, crossing):
+def classify_spacing(pairs, unresolved, crossing, rules=STANDARD_RULES):
     rejected = {}
     distances = {}
     for index, (previous, current) in enumerate(zip(pairs, pairs[1:]), 1):
@@ -16,8 +16,8 @@ def classify_spacing(pairs, unresolved, crossing):
         elapsed = (current.time - previous.time) // timedelta(microseconds=1)
         distance = crossing.speed_mps * Decimal(elapsed) / 1_000_000
         distances[index] = distance
-        if not MIN_SPACING <= distance <= MAX_SPACING:
-            code = "SPACING_SHORT" if distance < MIN_SPACING else "SPACING_LONG"
+        if not rules.min_spacing_m <= distance <= rules.max_spacing_m:
+            code = "SPACING_SHORT" if distance < rules.min_spacing_m else "SPACING_LONG"
             rejected.setdefault(index - 1, (code, current))
             rejected.setdefault(index, (code, previous))
 
@@ -32,7 +32,7 @@ def classify_spacing(pairs, unresolved, crossing):
                 issues.append(Issue(code, event.source, crossing.id, refs))
             continue
         gap = distances.get(index) if prior == index - 1 else None
-        if gap is None or gap > TANDEM_SPACING:
+        if gap is None or gap > rules.tandem_spacing_m:
             group += 1
         prior = index
         serial += 1

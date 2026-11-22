@@ -2,12 +2,12 @@ from collections import Counter, defaultdict
 from datetime import timedelta
 from decimal import Decimal
 
-from app.config import TICKET_GRACE_MIN, TICKET_TOLERANCE
+from app.config import STANDARD_RULES
 from app.modules.m6_reconcile.tickets import choose, ticket_book
 
 
-def reconcile(source, passes, axes, isolated, duplicates, raw_count):
-    book, ticket_issues = ticket_book(source, passes)
+def reconcile(source, passes, axes, isolated, duplicates, raw_count, rules=STANDARD_RULES):
+    book, ticket_issues = ticket_book(source, passes, rules)
     bad_tickets = defaultdict(list)
     for issue in ticket_issues:
         bad_tickets[issue.pass_id].append(issue.source.ref)
@@ -29,14 +29,14 @@ def reconcile(source, passes, axes, isolated, duplicates, raw_count):
         if ticket is not None and ticket.plate != crossing.plate:
             ticket, code = None, "TICKET_PLATE"
         if ticket is not None and (
-            ticket.time < crossing.start or ticket.time - crossing.end >= timedelta(minutes=TICKET_GRACE_MIN)
+            ticket.time < crossing.start or ticket.time - crossing.end >= timedelta(minutes=rules.ticket_grace_min)
         ):
             ticket, code = None, "TICKET_TIME"
         difference = ticket.kg - wheel_kg if ticket else None
         codes = [] if code is None else [code]
         if review[pass_id] or not items:
             codes.append("WHEELS_INCOMPLETE")
-        if difference is not None and abs(difference) > TICKET_TOLERANCE:
+        if difference is not None and abs(difference) > rules.ticket_tolerance_kg:
             codes.append("WEIGHT_DIFFERENCE")
         results.append({
             "pass_id": pass_id, "plate": crossing.plate, "pass_ref": crossing.source.ref,

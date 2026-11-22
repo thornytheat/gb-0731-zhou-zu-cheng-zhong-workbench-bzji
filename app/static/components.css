@@ -98,6 +98,15 @@ h2 { font-size: 13px; letter-spacing: .035em; }
 .ledger button { border: 0; background: transparent; color: var(--accent); padding: 0; text-decoration: underline; }
 .empty, .error { padding: 11px var(--pad); font-size: 12px; }
 .empty { color: var(--ink-3); }
+.upgrade { margin-top: var(--gap); }
+.upgrade-form { display: flex; align-items: end; flex-wrap: wrap; gap: 8px 14px; padding: 9px var(--pad) 4px; }
+.upgrade-field { display: grid; gap: 4px; font-size: 11px; color: var(--ink-3); }
+.upgrade-field input { width: 148px; }
+.upgrade-field--wide { flex: 1; min-width: 230px; }
+.upgrade-field textarea { width: 100%; min-height: 30px; resize: vertical; padding: 4px 8px;
+  color: var(--ink-2); border: 1px solid var(--line-2); border-radius: var(--radius-sm);
+  background: var(--panel-2); font: 12px var(--mono); }
+.upgrade-hint { padding: 0 var(--pad) 9px; color: var(--ink-3); font-size: 11px; }
 .statusbar a:hover { color: var(--ink); text-decoration: underline; }
 @media (max-width: 790px) {
   .rail-nav { margin-top: 8px; }

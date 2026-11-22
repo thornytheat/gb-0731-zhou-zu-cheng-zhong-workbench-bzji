@@ -27,6 +27,29 @@ const joined = (list) => list?.join(" / ");
 const labels = {pass: "正常", warn: "偏载", severe: "严重", matched: "已核平", review: "待复秤"};
 const styles = {pass: "ok", warn: "warn", severe: "bad", matched: "ok", review: "warn"};
 const displayStatus = (level) => ({text: labels[level], level: styles[level]});
+const impactLabels = {changed: "需重核", unchanged: "保持原样"};
+const impactStyles = {changed: "warn", unchanged: "ok"};
+const originLabels = {calibration: "轮载修正", debounce: "脉冲去抖", axles: "轴组重建", balance: "偏载判级", reconcile: "整车勾稽"};
+const conclusionText = (c) => `${labels[c.status]}${c.codes.length ? " · " + c.codes.join("/") : ""}`;
+
+function basisText(entry) {
+  const basis = entry.basis;
+  if (!basis) return "结论一致";
+  const parts = [];
+  if (basis.wheels.length) {
+    parts.push(`轮载 ${basis.wheels.map((w) => `${w.trigger} ${w.old_kg ?? "—"}→${w.new_kg ?? "隔离"}`).join("，")}`);
+  }
+  if (basis.issues.length) {
+    parts.push(`证据 ${basis.issues.map((i) => `${i.change === "added" ? "+" : "−"}${i.code}`).join(" ")}`);
+  }
+  if (basis.axles.old.join() !== basis.axles.new.join()) parts.push(`轴 ${basis.axles.old.length}→${basis.axles.new.length}`);
+  if (basis.balance.length) {
+    parts.push(`偏载 ${basis.balance.map((b) => `${b.axle.split("/").at(-1)} ${labels[b.old] ?? "—"}→${labels[b.new] ?? "撤销"}`).join("，")}`);
+  }
+  const recon = basis.reconcile;
+  if (recon.old_status !== recon.new_status) parts.push(`${labels[recon.old_status]}→${labels[recon.new_status]}`);
+  return parts.join(" · ") || "—";
+}
 
 const issueColumns = [
   col("车次", (r) => r.pass_id), col("原因码", (r) => r.code), col("说明", (r) => r.message),
@@ -40,7 +63,7 @@ const wheelColumns = [
   col("标定证书", (r) => r.cert), col("证书行", (r) => r.cert_ref), col("触发行", (r) => source(r.trigger)),
 ];
 
-export function moduleViews(name, snapshot, history) {
+export function moduleViews(name, snapshot, history, upgrade) {
   const data = snapshot?.data;
   const stage = data?.[name];
   switch (name) {
@@ -101,6 +124,35 @@ export function moduleViews(name, snapshot, history) {
         col("源文件", (r) => r.file), col("字节数", (r) => r.bytes, true), col("SHA-256", (r) => r.sha256),
       ]],
     ]};
+    case "upgrades": {
+      const orders = upgrade?.orders ?? [];
+      const order = upgrade?.order ?? null;
+      const head = order ? `复核单 ${order.order_id.slice(0, 12)} · 重核 ${order.summary.changed}/${order.summary.passes} 车次` : `${orders.length} 份复核单`;
+      return {summary: head, views: [
+        ["复核单", orders, [
+          col("复核单", (r) => ({text: r.order_id.slice(0, 12), order: r.order_id})),
+          col("批次", (r) => r.run_id.slice(0, 12)),
+          col("规则升级", (r) => `${r.from_rules} → ${r.to_rules}`),
+          col("参数变化", (r) => r.parameter_changes, true),
+          col("需重核", (r) => r.summary.changed, true),
+          col("保持原样", (r) => r.summary.unchanged, true),
+          col("出单时间", (r) => dateTime(r.created_at)),
+        ]],
+        ["车次影响", order?.entries, [
+          col("车次", (r) => r.pass_id), col("车牌", (r) => r.plate),
+          col("结论", (r) => ({text: impactLabels[r.impact], level: impactStyles[r.impact]})),
+          col("变化起点", (r) => originLabels[r.origin]),
+          col("旧结论", (r) => conclusionText(r.old)),
+          col("复核后结论", (r) => conclusionText(r.new)),
+          col("旧差额 kg", (r) => r.old.difference_kg, true),
+          col("新差额 kg", (r) => r.new.difference_kg, true),
+          col("依据", basisText),
+        ]],
+        ["参数变化", order?.parameter_changes, [
+          col("参数", (r) => r.name), col("旧值", (r) => String(r.old ?? "—")), col("新值", (r) => String(r.new)),
+        ]],
+      ]};
+    }
     default: throw new Error("模块不存在");
   }
 }
@@ -139,11 +191,12 @@ export function renderTable(view, query) {
       if (columns[index].numeric) td.className = "num";
       if (value?.level) {
         td.append(element("i", "", `lamp ${value.level}`), text);
-      } else if (value?.run) {
+      } else if (value?.run || value?.order) {
         const button = element("button", text);
         button.type = "button";
-        button.dataset.run = value.run;
-        button.title = value.run;
+        if (value.run) button.dataset.run = value.run;
+        else button.dataset.order = value.order;
+        button.title = value.run ?? value.order;
         td.append(button);
       } else {
         td.textContent = text || "—";

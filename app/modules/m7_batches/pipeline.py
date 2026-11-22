@@ -1,3 +1,4 @@
+from app.config import STANDARD_RULES
 from app.evidence import wire
 from app.manifest import clock
 from app.modules.m1_intake.service import accept
@@ -9,7 +10,7 @@ from app.modules.m6_reconcile.service import reconcile
 from app.reasons import REASONS
 
 
-def run_pipeline(sources, until="reconcile", events=None):
+def run_pipeline(sources, until="reconcile", events=None, rules=STANDARD_RULES):
     results = {}
 
     def log(level, code, message, time=None):
@@ -20,21 +21,21 @@ def run_pipeline(sources, until="reconcile", events=None):
     log("info", "INTAKE", f"{intake['file']} · {intake['raw']} 条 · {intake['encoding']}")
     if until == "intake":
         return wire(results)
-    cal = results["calibration"] = calibrate(intake["accepted"], sources)
+    cal = results["calibration"] = calibrate(intake["accepted"], sources, rules)
     log("info", "CALIBRATION", f"完成标定 {len(cal['wheels'])} 条")
     if until == "calibration":
         return wire(results)
-    pulse = results["debounce"] = debounce(intake["accepted"], cal["wheels"])
+    pulse = results["debounce"] = debounce(intake["accepted"], cal["wheels"], rules)
     log("info", "DEBOUNCE", f"保留 {len(pulse['kept'])} 条 · 重复 {len(pulse['duplicates'])} 条")
     if until == "debounce":
         return wire(results)
-    axles = results["axles"] = reconstruct(pulse["kept"], cal["passes"])
+    axles = results["axles"] = reconstruct(pulse["kept"], cal["passes"], rules)
     for axis in axles["axes"]:
         left, right = (axis[side].trigger for side in ("left", "right"))
         log("ok", "AXLE", f"{axis['id']} · {left.id} / {right.id} · {axis['total_kg']} kg", axis["time"])
     if until == "axles":
         return wire(results)
-    grades = results["balance"] = balance(axles["axes"])
+    grades = results["balance"] = balance(axles["axes"], rules)
     log("info", "BALANCE", f"偏载 {grades['counts']['warn']} 轴 · 严重 {grades['counts']['severe']} 轴")
     if until == "balance":
         return wire(results)
@@ -44,7 +45,7 @@ def run_pipeline(sources, until="reconcile", events=None):
     duplicates = sorted(pulse["duplicates"], key=lambda issue: issue.source.line)
     results["quarantine"] = isolated
     ledger = results["reconcile"] = reconcile(
-        sources["tickets"], cal["passes"], axles["axes"], isolated, duplicates, intake["raw"],
+        sources["tickets"], cal["passes"], axles["axes"], isolated, duplicates, intake["raw"], rules,
     )
     if not ledger["ledger"]["balanced"]:
         raise RuntimeError("触发流水未守恒")

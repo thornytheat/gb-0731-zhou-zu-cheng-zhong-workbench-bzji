@@ -1,7 +1,7 @@
 import {byId, dateTime, element, moduleViews, renderChart, renderTable} from "./views.js";
 import {startTelemetry} from "./telemetry.js";
 
-const state = {snapshot: null, history: [], module: "axles", view: 0, busy: false, passId: ""};
+const state = {snapshot: null, history: [], orders: [], order: null, module: "axles", view: 0, busy: false, passId: ""};
 const nav = Array.from(document.querySelectorAll("[data-module]"));
 const sample = byId("sample");
 const vehicle = byId("vehicle");
@@ -32,6 +32,8 @@ function controls() {
   sample.disabled = state.busy;
   byId("run").disabled = state.busy;
   byId("rerun").disabled = state.busy || !id;
+  byId("upgrade-submit").disabled = state.busy || !id;
+  byId("upgrade-meta").textContent = id ? `批次 ${id.slice(0, 12)} · ${state.snapshot.manifest.rules}` : "先归档批次，再出具升级复核单";
   if (id && !state.busy) exportButton.href = `/api/batches/${id}/export`;
   else exportButton.removeAttribute("href");
   exportButton.setAttribute("aria-disabled", String(!id || state.busy));
@@ -64,7 +66,8 @@ function paintPasses() {
 }
 
 function paintEvidence(resetScroll = true) {
-  const info = moduleViews(state.module, state.snapshot, state.history);
+  byId("upgrade-panel").hidden = state.module !== "upgrades";
+  const info = moduleViews(state.module, state.snapshot, state.history, {orders: state.orders, order: state.order});
   byId("module-title").textContent = nav.find((button) => button.dataset.module === state.module).textContent.trim();
   byId("module-summary").textContent = info.summary;
   const bar = byId("module-views");
@@ -96,6 +99,10 @@ async function refresh(runId) {
 
 async function history() {
   state.history = (await request("/api/batches")).batches;
+  state.orders = (await request("/api/upgrades")).orders;
+  if (!state.order && state.orders.length) {
+    state.order = (await request(`/api/upgrades/${state.orders[0].order_id}`)).order;
+  }
 }
 
 async function act(action) {
@@ -140,6 +147,31 @@ byId("rerun").addEventListener("click", () => act(async () => {
   await history();
   showNote("重算核验一致");
 }));
+byId("upgrade-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  act(async () => {
+    const runId = state.snapshot?.manifest?.run_id;
+    if (!runId) throw new Error("先归档批次，再出具升级复核单");
+    const raw = byId("upgrade-parameters").value.trim();
+    let parameters = {};
+    if (raw) {
+      try {
+        parameters = JSON.parse(raw);
+      } catch {
+        throw new Error("参数覆盖不是有效 JSON");
+      }
+    }
+    const result = await request("/api/upgrades", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({run_id: runId, rules: byId("upgrade-version").value.trim(), parameters}),
+    });
+    state.order = result.order;
+    await history();
+    state.view = 1;
+    showNote(result.reused ? "相同升级已出单，沿用原复核单" : `复核单已出具 · 重核 ${result.order.summary.changed}/${result.order.summary.passes} 车次`);
+  });
+});
 sample.addEventListener("change", () => act(async () => {
   state.snapshot = null;
   await refresh();
@@ -166,8 +198,17 @@ byId("module-views").addEventListener("click", (event) => {
   }
 });
 byId("evidence-table").addEventListener("click", (event) => {
-  const button = event.target.closest("[data-run]");
-  if (button) act(() => refresh(button.dataset.run));
+  const runButton = event.target.closest("[data-run]");
+  if (runButton) {
+    act(() => refresh(runButton.dataset.run));
+    return;
+  }
+  const orderButton = event.target.closest("[data-order]");
+  if (orderButton) act(async () => {
+    state.order = (await request(`/api/upgrades/${orderButton.dataset.order}`)).order;
+    state.view = 1;
+    paintEvidence();
+  });
 });
 filter.addEventListener("input", () => paintEvidence());
 

@@ -21,7 +21,14 @@ CREATE TABLE IF NOT EXISTS events (
     message TEXT NOT NULL,
     source_time TEXT
 );
+CREATE TABLE IF NOT EXISTS upgrade_orders (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    run_id TEXT NOT NULL REFERENCES runs(id),
+    payload TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS run_history ON runs(created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS order_history ON upgrade_orders(created_at DESC, id DESC);
 """
 
 
@@ -69,6 +76,18 @@ class Store:
             rows = db.execute("SELECT * FROM events WHERE seq > ? ORDER BY seq LIMIT ?", (after, limit))
             return [dict(row) for row in rows]
 
+    def read_order(self, order_id):
+        with closing(self.connect()) as db:
+            row = db.execute("SELECT payload FROM upgrade_orders WHERE id = ?", (order_id,)).fetchone()
+        if row is None:
+            raise DomainError("ORDER_UNKNOWN", 404)
+        return json.loads(row["payload"])
+
+    def order_history(self):
+        with closing(self.connect()) as db:
+            rows = db.execute("SELECT payload FROM upgrade_orders ORDER BY created_at DESC, id DESC LIMIT 50")
+            return [json.loads(row["payload"]) for row in rows]
+
 
 def find(db, run_id):
     row = db.execute("SELECT manifest, results FROM runs WHERE id = ?", (run_id,)).fetchone()
@@ -84,3 +103,14 @@ def add_run(db, manifest, results):
 def add_events(db, run_id, events):
     db.executemany("""INSERT INTO events (run_id,time,level,code,message,source_time)
                     VALUES (?, ?, ?, ?, ?, ?)""", ((run_id, *event) for event in events))
+
+
+def find_order(db, order_id):
+    row = db.execute("SELECT payload FROM upgrade_orders WHERE id = ?", (order_id,)).fetchone()
+    return json.loads(row["payload"]) if row else None
+
+
+def add_order(db, order):
+    db.execute("INSERT INTO upgrade_orders VALUES (?, ?, ?, ?)", (
+        order["order_id"], order["created_at"], order["run_id"], canonical(order),
+    ))

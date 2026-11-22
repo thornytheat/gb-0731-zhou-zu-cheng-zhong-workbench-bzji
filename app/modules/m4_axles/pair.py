@@ -2,7 +2,7 @@ from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from app.config import PAIR_MS
+from app.config import STANDARD_RULES
 from app.evidence import Issue
 from app.modules.m2_calibration.service import Wheel
 from app.values import delta_ms
@@ -16,7 +16,7 @@ class Pair:
     skew_ms: int
 
 
-def match(wheels, crossing):
+def match(wheels, crossing, rules=STANDARD_RULES):
     lanes = {side: [wheel for wheel in wheels if wheel.trigger.side == side] for side in ("L", "R")}
     times = {
         side: [delta_ms(wheel.trigger.time, crossing.start) for wheel in lane]
@@ -25,8 +25,8 @@ def match(wheels, crossing):
     neighbors = {}
     for side, other in (("L", "R"), ("R", "L")):
         for wheel, time in zip(lanes[side], times[side]):
-            first = bisect_left(times[other], time - PAIR_MS)
-            last = bisect_right(times[other], time + PAIR_MS)
+            first = bisect_left(times[other], time - rules.pair_ms)
+            last = bisect_right(times[other], time + rules.pair_ms)
             neighbors[wheel.trigger.id] = lanes[other][first:last]
 
     pairs, issues, unresolved = [], [], []
